@@ -2,29 +2,30 @@ import wandb
 import numpy as np
 from stable_baselines3 import PPO
 from grid_env import GridWorldEnv
+# from grid_env_new_reward import GridWorldEnv
 import torch as th
 from map_generator import generate_random_map, is_map_solvable
 
 # run_id = ""
 
-# wandb.init(
-#     project="hybrid_rl_grid",    
-#     id=run_id, 
-#     resume="allow"
-# )
+wandb.init(
+    project="hybrid_rl_grid"    
+    # id=run_id, 
+    # resume="allow"
+)
 
-env = GridWorldEnv(generate_random_map(), range_gs = True)
+env = GridWorldEnv(generate_random_map())
 
-policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                     net_arch=dict(pi=[64, 32, 32, 12], vf=[64, 32, 32, 12]))
+# policy_kwargs = dict(activation_fn=th.nn.ReLU,
+#                      net_arch=dict(pi=[64, 32, 32, 12], vf=[64, 32, 32, 12]))
 
-model = PPO(policy="MlpPolicy",
-            env=env,            
-            learning_rate=1e-3,
-            policy_kwargs=policy_kwargs,
-            gamma=0.95)
+# model = PPO(policy="MlpPolicy",
+#             env=env,            
+#             learning_rate=1e-3,
+#             policy_kwargs=policy_kwargs,
+#             gamma=0.95)
 
-# model = PPO.load("test_ppo_gridworld_new", env=env)
+model = PPO.load("models/hybrid_ppo_grid_last", env=env)
 
 desired_avg_reward = 1000
 
@@ -34,13 +35,13 @@ try:
     while True:
         # print("New map is generated!")
         grid_map = generate_random_map()
-        env = GridWorldEnv(grid_map, range_gs = True)
+        env = GridWorldEnv(grid_map)
         obs = env.reset()
         solvable, path = is_map_solvable(grid_map, env.agent_position, env.goal_position)
         while not solvable:
             # print("Map not solvable yet!")
             grid_map = generate_random_map()
-            env = GridWorldEnv(grid_map, range_gs = True)
+            env = GridWorldEnv(grid_map)
             obs = env.reset()
             solvable, path = is_map_solvable(grid_map, env.agent_position, env.goal_position)
         
@@ -96,22 +97,22 @@ try:
             episode_rewards.append(total_reward)
             
         avg_reward = np.mean(episode_rewards)
-        # wandb.log({"reward": avg_reward})  
+        wandb.log({"reward": avg_reward})  
 
         print(f"Average reward: {avg_reward}")
         if avg_reward > last_score:
             last_score = avg_reward
-            model.save("hybrid_ppo_grid_max")
+            model.save("hybrid_ppo_grid_max3")
 
         if avg_reward >= desired_avg_reward:
             print("Training completed. Desired average reward achieved.")
-            model.save("hybrid_ppo_grid_best")
+            model.save("hybrid_ppo_grid_best3")
             break
         
-    # wandb.finish()
+    wandb.finish()
     
 except KeyboardInterrupt:
     print("Training interrupted.")
-    model.save("hybrid_ppo_grid_last")
+    model.save("hybrid_ppo_grid_last3")
     print("Last model saved successfully.")
-    # wandb.finish()
+    wandb.finish()

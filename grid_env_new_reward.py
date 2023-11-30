@@ -36,7 +36,6 @@ class GridWorldEnv(gym.Env):
         # Euclidean distance to the goal position
         goal_row, goal_col = self.goal_position
         euclidean_distance = np.linalg.norm([goal_row - agent_row, goal_col - agent_col])
-        euclidean_distance /= self.max_distance  # Scale distance to [0, 1]
 
         # Direction to the goal position
         dx = goal_row - agent_row
@@ -44,7 +43,11 @@ class GridWorldEnv(gym.Env):
         goal_direction = math.atan2(dy, dx)
         goal_dir_deg = math.degrees(goal_direction)
         agent_goal_diff = (goal_dir_deg - self.orientation) % 360.0 - 180.0
-        agent_goal_diff = (agent_goal_diff - (-180.0)) / (180.0 - (-180.0)) # Normalize to [0, 1] where 0.5 -> 0 degrees
+        
+        arc_length = math.radians(agent_goal_diff) * euclidean_distance
+        norm_arc = min(abs(arc_length)/7, 1.0)
+        euclidean_distance_norm = euclidean_distance / self.max_distance  # Scale distance to [0, 1]
+        agent_goal_diff_norm = (agent_goal_diff - (-180.0)) / (180.0 - (-180.0)) # Normalize to [0, 1] where 0.5 -> 0 degrees
         # goal_direction = (goal_direction + math.pi) / (2 * math.pi)  # Normalize to [0, 1] (old observation space)
 
         # # Calculate obstacles around the agent's position
@@ -63,8 +66,8 @@ class GridWorldEnv(gym.Env):
         obstacle_distances = self._get_obs_distance(agent_row, agent_col) # a list with 3 values
         
         steps = self.total_steps/self.max_steps
-        observation = np.array([euclidean_distance, agent_goal_diff, steps] + obstacle_distances, dtype=np.float32)
-        return observation
+        observation = np.array([euclidean_distance_norm, agent_goal_diff_norm, steps] + obstacle_distances, dtype=np.float32)
+        return observation, euclidean_distance_norm, norm_arc
 
 
     def reset(self):
@@ -78,7 +81,7 @@ class GridWorldEnv(gym.Env):
         while np.array_equal(self.agent_position, self.goal_position):
             self.goal_position = (random.randint(2,height-2),random.randint(2,width-2))
 
-        obs = self._calculate_observation()
+        obs, _, _ = self._calculate_observation()
         return obs
     
     
@@ -97,15 +100,15 @@ class GridWorldEnv(gym.Env):
         else:
             reward = -10    # Penalty for collision
             done = True
-            obs = self._calculate_observation()  # Update the observation
+            obs, _, _ = self._calculate_observation()  # Update the observation
             return obs, reward, done, {}
 
         done = False
 
-        obs = self._calculate_observation()  # Update the observation
+        obs, eucl, arc = self._calculate_observation()  # Update the observation
         self.last_euclidean_distance = obs[0]
 
-        reward = -obs[0]
+        reward = 0.5 * (1 - eucl) + 0.5 * (1 - arc)  # Reward for moving closer to the goal
 
         if np.array_equal(self.agent_position, self.goal_position):
             done = True
